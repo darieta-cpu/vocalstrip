@@ -1,1 +1,52 @@
+name: Build Vocal Strip
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  build-mac:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Configure
+        run: cmake -B build -G Xcode
+      - name: Build
+        run: cmake --build build --config Release --parallel
+      - name: Sign (ad hoc) and package
+        run: |
+          mkdir -p dist
+          find build -type d \( -name "*.component" -o -name "*.vst3" \) -prune -exec cp -R {} dist/ \;
+          for f in dist/*; do codesign --force --deep -s - "$f"; done
+          cd dist && zip -ry ../VocalStrip-mac.zip .
+      - uses: actions/upload-artifact@v6
+        with:
+          name: VocalStrip-macOS-AU-VST3
+          path: VocalStrip-mac.zip
+
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Configure
+        run: cmake -B build -A x64
+      - name: Build
+        run: cmake --build build --config Release --parallel
+      - name: Package
+        shell: bash
+        run: |
+          mkdir dist
+          find build -type d -name "*.vst3" -prune -exec cp -R {} dist/ \;
+          ls -la dist
+      - name: Build installer
+        shell: pwsh
+        run: |
+          choco install innosetup -y --no-progress
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer.iss
+      - uses: actions/upload-artifact@v6
+        with:
+          name: VocalStrip-Windows
+          path: |
+            output/VocalStrip-Setup.exe
+            dist
 
